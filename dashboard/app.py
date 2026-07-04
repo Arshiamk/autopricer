@@ -218,7 +218,7 @@ if page == "Overview":
     with col1:
         st.metric("Total Profit (Actual)", f"£{perf_report.get('total_profit_actual', 0):,.0f}")
     with col2:
-        st.metric("Profit Lift vs Flat Offer", f"+{perf_report.get('profit_lift_pct', 0)}%")
+        st.metric("Win Rate", f"{perf_report.get('win_rate', 0) * 100:.1f}%")
     with col3:
         st.metric("Price Model MAE", f"£{perf_report.get('price_mae', 0)}")
     with col4:
@@ -352,7 +352,9 @@ elif page == "Policy Simulator":
         with st.container(border=True):
             col_l1, col_l2 = st.columns([3, 1])
             with col_l1:
-                reg_input = st.text_input("Registration Plate", placeholder="e.g. AB12 CDE", label_visibility="collapsed")
+                reg_input = st.text_input(
+                    "Registration Plate", placeholder="e.g. AB12 CDE", label_visibility="collapsed"
+                )
             with col_l2:
                 btn_lookup = st.button("Lookup", use_container_width=True)
 
@@ -363,7 +365,9 @@ elif page == "Policy Simulator":
                     try:
                         session = get_session()
                         headers = {"X-API-Key": api_key}
-                        res = session.get(f"{api_url}/lookup", params={"reg": reg_input}, headers=headers)
+                        res = session.get(
+                            f"{api_url}/lookup", params={"reg": reg_input}, headers=headers
+                        )
                         if res.status_code == 200:
                             data = res.json()
                             st.session_state.dvla_data = data
@@ -406,20 +410,20 @@ elif page == "Policy Simulator":
             pref_mileage = dvla_info.get("mileage", 45000)
 
             make_opts = list(makes_models.keys()) + ["Other (type manually)"]
-            
+
             # Smart index for make
             make_idx = 0
             if pref_make:
                 match = [i for i, m in enumerate(make_opts) if pref_make.lower() == m.lower()]
                 make_idx = match[0] if match else len(make_opts) - 1
-                
+
             make = st.selectbox("Make", make_opts, index=make_idx)
             final_make = make
             if make == "Other (type manually)":
                 final_make = st.text_input("Enter Make", value=pref_make if pref_make else "")
 
             model_opts = makes_models.get(make, ["Generic"]) + ["Other (type manually)"]
-            
+
             # Smart index for model
             model_idx = 0
             if pref_model:
@@ -432,11 +436,15 @@ elif page == "Policy Simulator":
                 final_model = st.text_input("Enter Model", value=pref_model if pref_model else "")
 
             fuel_opts = ["petrol", "diesel", "electric", "hybrid"]
-            fuel_idx = fuel_opts.index(pref_fuel.lower()) if pref_fuel and pref_fuel.lower() in fuel_opts else 0
+            fuel_idx = (
+                fuel_opts.index(pref_fuel.lower())
+                if pref_fuel and pref_fuel.lower() in fuel_opts
+                else 0
+            )
             fuel = st.selectbox("Fuel", fuel_opts, index=fuel_idx)
 
             years = list(range(2025, 2009, -1))
-            year_idx = years.index(pref_year) if pref_year in years else len(years)//2
+            year_idx = years.index(pref_year) if pref_year in years else len(years) // 2
             year = st.selectbox("Year", years, index=year_idx)
 
             mileage = st.number_input("Mileage", 0, 500000, pref_mileage, step=1000)

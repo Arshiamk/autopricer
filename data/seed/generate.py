@@ -49,7 +49,7 @@ def generate_synthetic_data(num_vehicles=50000, offers_per_enquiry=1, seed=42):
 
     years = np.random.randint(2010, 2025, num_vehicles)
     age = 2025 - years
-    age_depreciation = np.power(0.85, age)  # 15% depreciation per year
+    age_depreciation = np.power(0.88, age)  # 12% depreciation per year (more realistic for UK)
 
     mileages = np.random.exponential(scale=30000, size=num_vehicles) + 5000
     mileage_depreciation = np.maximum(0.3, 1.0 - (mileages / 150000.0) * 0.5)
@@ -75,7 +75,14 @@ def generate_synthetic_data(num_vehicles=50000, offers_per_enquiry=1, seed=42):
     true_market_values = base_values * age_depreciation * mileage_depreciation
     # Add some noise
     true_market_values *= np.random.normal(1.0, 0.1, num_vehicles)
-    true_market_values = np.maximum(500, true_market_values).round(2)
+
+    # Ensure a reasonable floor for modern cars
+    true_market_values = np.where(
+        (2025 - years) < 10,
+        np.maximum(1500, true_market_values),
+        np.maximum(500, true_market_values),
+    )
+    true_market_values = true_market_values.round(2)
 
     # 3. Generate Enquiries & Sales
     channels = np.random.choice(["dealer", "private", "fleet"], num_vehicles, p=[0.6, 0.3, 0.1])
@@ -115,11 +122,17 @@ def generate_synthetic_data(num_vehicles=50000, offers_per_enquiry=1, seed=42):
         price_sensitivity = tmv * 0.05  # How sharp the curve is
 
         # Generate N counterfactual offers mapping to different win probs
-        for _ in range(offers_per_enquiry):
+        for offer_idx in range(offers_per_enquiry):
             eid = f"E{str(enquiry_counter).zfill(7)}"
 
-            # Offer is generally lower than true market value to make profit, but with variance
-            offer_ratio = np.random.normal(0.85, 0.1)  # We try to buy at 85% of tmv
+            if offer_idx == 0:
+                # Historical buying policy: aim for ~85% of true market value
+                offer_ratio = np.random.normal(0.85, 0.1)
+            else:
+                # Counterfactual offers deliberately explore a wide ratio range so a
+                # conversion model can learn the offer->win curve across the whole
+                # region a pricing policy might search, not just around 0.85.
+                offer_ratio = np.random.uniform(0.60, 1.10)
             offer_price = round(tmv * offer_ratio, 2)
 
             # Sigmoid P(win | offer)
