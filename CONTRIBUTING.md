@@ -1,6 +1,6 @@
 # Contributing to AutoPricer
 
-First off, thank you for considering contributing to AutoPricer! It's people like you that make AutoPricer such a great tool.
+Thank you for considering contributing to AutoPricer.
 
 ## Where do I go from here?
 
@@ -38,19 +38,19 @@ make lint
 
 ## Make a Pull Request
 
-At this point, you should switch back to your master branch and make sure it's up to date with AutoPricer's master branch:
+At this point, you should switch back to your main branch and make sure it's up to date with AutoPricer's main branch:
 
 ```sh
-git remote add upstream git@github.com:Arshiamk/AutoPricer-Vehicle-Buy-Price-Optimiser.git
-git checkout master
-git pull upstream master
+git remote add upstream git@github.com:Arshiamk/autopricer.git
+git checkout main
+git pull upstream main
 ```
 
-Then update your feature branch from your local copy of master, and push it!
+Then update your feature branch from your local copy of main, and push it!
 
 ```sh
 git checkout 325-add-new-pricing-feature
-git rebase master
+git rebase main
 git push --set-upstream origin 325-add-new-pricing-feature
 ```
 

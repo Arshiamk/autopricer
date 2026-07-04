@@ -1,27 +1,29 @@
-# AutoPricer – Vehicle Buy-Price Optimiser 🚗💷
+# AutoPricer – Vehicle Buy-Price Optimiser
 
-[![CI](https://github.com/Arshiamk/AutoPricer-Vehicle-Buy-Price-Optimiser/actions/workflows/ci.yml/badge.svg)](https://github.com/Arshiamk/AutoPricer-Vehicle-Buy-Price-Optimiser/actions)
+[![CI](https://github.com/Arshiamk/autopricer/actions/workflows/ci.yml/badge.svg)](https://github.com/Arshiamk/autopricer/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A production-grade machine learning pricing system designed to optimise the trade-off between **Margin** and **Conversion Volume** in a vehicle-buying business (e.g., Cazoo, Carvana, WeBuyAnyCar).
+A production-style machine learning pricing system that optimises the trade-off between **margin** and **conversion volume** in a vehicle-buying business (e.g. Cazoo, Carvana, WeBuyAnyCar).
 
-Most "pricing" repos stop at predicting the sale price. This system goes further: it builds a policy optimiser that uses expected margin, predicted conversion probability, and tail-risk penalties to recommend a commercial buy-price that explicitly maximises **Expected Value (Profit)**.
+Most pricing repos stop at predicting the sale price. This system goes further: it builds a policy optimiser that combines expected margin, a predicted offer-to-win-probability curve, and tail-risk penalties to recommend a buy price that maximises **expected value**.
 
----
-
-## 📖 Walkthrough / Repo Overview
-
-Please see the [Walkthrough Document](walkthrough.md) for a detailed, phase-by-phase breakdown of what this repository includes, why the synthetic data generation method is robust, and how the models balance variance and volume.
+The system runs entirely on a synthetic auction dataset with a known data-generating process, which makes every model claim below reproducible from a clean checkout.
 
 ---
 
-## 🚀 3-Command Quickstart
+## Walkthrough / Repo Overview
 
-The repository is fully dockerised and requires no external data downloads (it includes a realistic synthetic auction generator).
+See the [Walkthrough Document](walkthrough.md) for a phase-by-phase breakdown of the repository: how the synthetic data is generated with counterfactual offers, how the models are trained and calibrated, and how the offer optimiser works.
+
+---
+
+## Quickstart
+
+The repository is dockerised and requires no external data downloads (it includes a synthetic auction generator).
 
 ```bash
 cp .env.example .env
-make setup generate train
+make setup generate features train
 docker-compose up -d
 ```
 
@@ -30,13 +32,13 @@ docker-compose up -d
 
 ---
 
-## 🏛 Architecture
+## Architecture
 
 ```mermaid
 graph TD
     A[Synthetic Data Generator] -->|Vehicles/Enquiries/Sales| B[(Postgres raw)]
     B -->|dbt transformations| C[(Postgres marts)]
-    C -->|train_price_model.py| D[XGBRegressor & Quantile Models]
+    C -->|train_price_model.py| D[XGBRegressor + Conformal Quantile Bounds]
     C -->|train_conversion_model.py| E[Calibrated Classifier]
     D --> F[Local Model Registry]
     E --> F
@@ -46,87 +48,82 @@ graph TD
 
 ---
 
-## 📸 Proof of Execution
+## Screenshots and Example Output
 
-### Dashboard Visualisation
-
-The Streamlit interface acts as a visual verification layer, mapping the Live API responses securely:
+### Dashboard
 
 ![Dashboard Overview](images/simulator.png)
 
-### Live API Call
+### Example API Call
 
-The backend leverages the highly-calibrated algorithms via standard FastAPI endpoints. Below is a real verified curl and response output from `http://localhost:8000/quote`:
+Response from `POST http://localhost:8000/quote` for a 2019 BMW 3 Series (hybrid, 42,000 miles, dealer channel), using locally trained models:
 
 ```json
 {
-  "recommended_offer": 2379.577051279496,
-  "expected_value": 110.33887615135318,
-  "p_win": 0.22029617115623387,
-  "risk_band": "low",
+  "recommended_offer": 6254.88,
+  "expected_value": 874.84,
+  "p_win": 0.551,
+  "risk_band": "medium",
   "explanation": {
-    "e_sale": 3280.443115234375,
+    "e_sale": 8665.50,
     "e_costs": 400.0,
-    "tail_penalty": 0.0
+    "tail_penalty": 467.37
   }
 }
 ```
 
 ---
 
-## 🧠 Model Strategy & Improvements
+## Model Strategy
 
-### Baseline vs Improved
+1. **Sale-price model**: XGBoost regressor for E(sale price), with q10/q90 uncertainty bounds derived by split-conformal calibration of prediction ratios on a held-out set.
+2. **Conversion model**: `HistGradientBoostingClassifier` wrapped in `CalibratedClassifierCV` (isotonic), trained with `offer_price` and an engineered `offer_to_value_ratio` feature so it learns genuine price elasticity.
+3. **Counterfactual training data**: the generator emits multiple offers per enquiry across a wide offer/value range, so the offer-to-win curve is learned rather than confounded with vehicle value.
+4. **EV optimiser**: grid search over feasible offers maximising `P(win|offer) x (E(sale) - offer - E(costs)) - lambda x tail_penalty`.
 
-We implemented a multi-phase improvement strategy to show measurable profit impact:
+### Held-Out Metrics
 
-1. **Baseline**: Simple XGBoost regressor, LogisticRegression for conversion, and a flat 85%-of-book-value policy.
-2. **Improved**:
-   - Non-linear `HistGradientBoostingClassifier` for the offer-to-win curve.
-   - `CalibratedClassifierCV` (isotonic) to ensure probabilities are true expected values.
-   - Explicit counterfactual training data so the model genuinely learns price elasticity.
+Metrics on held-out test splits of the synthetic dataset (100,000 enquiries; reproduce with `make generate features train evaluate`, written to `reports/model_evaluation.json`):
 
-### Results
+| Metric | Value |
+|---|---|
+| Sale-price MAE | ~£1,900 |
+| q10 bound empirical coverage | 0.102 (target 0.10) |
+| Conversion ROC AUC | 0.849 |
+| Conversion Brier score | 0.154 |
 
-Comparing the naive flat-offer policy to the EV Optimiser policy over 1,000 simulated vehicles:
-
-- **Conversion Rate**: 35% ➔ 42%
-- **Margin per Win**: £400 ➔ £550
-- **Total Expected Profit**: £140k ➔ £231k **(+65% Lift)**
-
-_(Full breakdown in `reports/baseline_vs_improved.md`)_
+Exact values vary slightly per regeneration of the synthetic dataset.
 
 ---
 
-## 🚨 Monitoring & Drift Thresholds
+## Monitoring & Drift Thresholds
 
-Models degrade. The system includes a daily pipeline (`pipelines/monitor/`) that checks:
+Models degrade. The repo includes a monitoring pipeline (`pipelines/monitor/`, run with `make monitor`) that checks:
 
-- **Population Stability Index (PSI)** & **KS-Tests** on incoming features (e.g. `mileage`, `damage_severity`).
-- **Alerting Threshold**: If `PSI > 0.25` or `KS p-value < 0.05`, a drift alert is logged.
-- **Performance Threshold**: If 30-day rolling MAE degrades by >15%, a `reports/retrain_required.json` trigger is written to disk for CI orchestration.
-
----
-
-## 🔮 Limitations & Next Steps (Real-World)
-
-If deployed with a real company's data, I would immediately:
-
-1. **Actual CVaR**: Replace the `q10` quantile penalty with a true simulated Conditional Value at Risk drawing from actual margin distributions.
-2. **Causal ML / Uplift**: Move from observational counterfactuals to true uplift modeling (e.g., Double ML) to isolate the causal effect of price changes, removing confounding bias in historical dealer negotiations.
-3. **dbt Cloud / Airflow**: Move the ingestion and monitoring scripts from plain Make targets into a mature orchestrator like Airflow or Prefect.
-4. **Feature Store**: Persist `features.parquet` into a proper low-latency feature store (e.g., Redis) to guarantee train-serve exactness for the FastAPI application.
+- **Population Stability Index (PSI)** and **KS tests** on key numeric features (e.g. `mileage`, `vehicle_age`, `offer_price`). Drift is flagged if `PSI > 0.25` or `KS p-value < 0.05`.
+- **Performance tracking**: the current models are re-scored against the latest feature snapshot; an alert triggers if price MAE exceeds a configured threshold.
+- **Alerting**: when either check fires, `reports/retrain_required.json` is written for CI orchestration.
 
 ---
 
-## 🤝 Contributing
+## Limitations & Next Steps (Real-World)
 
-Contributions, issues, and feature requests are welcome!
-Feel free to check out the [issues page](https://github.com/Arshiamk/AutoPricer-Vehicle-Buy-Price-Optimiser/issues).
-For detailed instructions, please read our [Contributing Guidelines](CONTRIBUTING.md).
+If deployed against a real company's data, the immediate priorities would be:
+
+1. **Actual CVaR**: replace the q10 tail penalty with a simulated Conditional Value at Risk drawn from realised margin distributions.
+2. **Causal ML / Uplift**: move from generated counterfactuals to true uplift modelling (e.g. Double ML) to isolate the causal effect of price changes in observational data.
+3. **Orchestration**: move the ingestion and monitoring scripts from Make targets into Airflow or Prefect.
+4. **Feature store**: persist features into a low-latency store (e.g. Redis) to guarantee train-serve consistency at the API layer.
 
 ---
 
-## 📝 License
+## Contributing
+
+Contributions, issues, and feature requests are welcome.
+See the [issues page](https://github.com/Arshiamk/autopricer/issues) and the [Contributing Guidelines](CONTRIBUTING.md).
+
+---
+
+## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.

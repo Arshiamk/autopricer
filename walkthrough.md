@@ -41,17 +41,16 @@ Outputs include: `vehicles.csv`, `regions.csv`, `enquiries.csv`, `sales.csv` (wi
 
 ### Models
 
-- **Sale-price model:** ensemble regressor for E(sale_price)
-- **Quantile bounds:** lower/upper quantile estimators to represent uncertainty (used for tail-risk penalties)
-- **Conversion model:** non-linear classifier trained with `offer_price` as an explicit feature; probability calibration improves decision reliability.
+- **Sale-price model:** XGBoost regressor for E(sale_price)
+- **Quantile bounds:** q10/q90 bounds derived by split-conformal calibration of prediction ratios on a held-out set (used for tail-risk penalties)
+- **Conversion model:** non-linear classifier trained with `offer_price` and an engineered `offer_to_value_ratio` feature; isotonic probability calibration improves decision reliability.
 
 ### Evaluation (commercial + ML)
 
-Reports include:
+`pipelines/evaluate/evaluate.py` scores the trained models on held-out test splits and writes `reports/model_evaluation.json`:
 
-- MAE (price), AUC/Brier (conversion), calibration diagnostics
-- segment breakdowns (channel/region/etc.)
-- profit simulation vs a simple baseline policy (flat offer)
+- MAE (price), AUC/Brier (conversion)
+- empirical coverage of the conformal q10 bound
 
 ## 4) Phase 4 — Drift Monitoring + Retrain Alerts
 
@@ -83,7 +82,7 @@ Tail penalty is intentionally not labelled CVaR unless computed explicitly; in t
 
 ```bash
 make setup
-make generate
+make generate features train
 docker-compose up --build
 ```
 
@@ -94,8 +93,6 @@ Dashboard: `http://localhost:8501`
 
 - optimiser unit tests (pure Python)
 - API contract tests (FastAPI TestClient)
-- feature engineering tests
-- drift metric tests
 
 Run:
 
