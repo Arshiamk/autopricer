@@ -47,7 +47,6 @@ models/*
 !models/.gitkeep
 reports/*
 !reports/.gitkeep
-!reports/baseline_vs_improved.md
 !reports/pricing_policy.md
 
 # Jupyter Notebook
@@ -63,3 +62,13 @@ htmlcov/
 .idea/
 *.swp
 .DS_Store
+
+# Local scratch / probe artifacts (never commit these)
+*.log
+api_*.json
+*_sanity.txt
+*_quality.txt
+*_status.txt
+test_api_script.py
+scratch/
+tmp/

@@ -1,79 +1,140 @@
 import os
 import hashlib
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 import httpx
 
 DVLA_VES_API_KEY = os.getenv("DVLA_VES_API_KEY")
 DVSA_MOT_API_KEY = os.getenv("DVSA_MOT_API_KEY")
 
 
+# Fictional demo vehicles keyed by placeholder registrations (AB12 CDE is the
+# standard DVLA example plate format). These are NOT real vehicles; they exist so
+# the dashboard demo returns stable, recognisable results for a few known inputs.
+DEMO_PLATE_REGISTRY = {
+    "AB12CDE": {
+        "make": "Volkswagen",
+        "model": "Golf GTE",
+        "year": 2012,
+        "fuel_type": "hybrid",
+        "mileage": 85000,
+        "mot_status": "Valid",
+        "mot_days_remaining": 45,
+    },
+    "CD34EFG": {
+        "make": "Hyundai",
+        "model": "Ioniq Premium SE",
+        "year": 2020,
+        "fuel_type": "hybrid",
+        "mileage": 48000,
+        "mot_status": "Valid",
+        "mot_days_remaining": 210,
+    },
+    "EF56GHI": {
+        "make": "BMW",
+        "model": "3 Series 330e",
+        "year": 2019,
+        "fuel_type": "hybrid",
+        "mileage": 42000,
+        "mot_status": "Valid",
+        "mot_days_remaining": 150,
+    },
+    "GH78JKL": {
+        "make": "Tesla",
+        "model": "Model 3 Long Range",
+        "year": 2020,
+        "fuel_type": "electric",
+        "mileage": 35000,
+        "mot_status": "Valid",
+        "mot_days_remaining": 200,
+    },
+    "JK90LMN": {
+        "make": "Ford",
+        "model": "Fiesta Titanium",
+        "year": 2017,
+        "fuel_type": "petrol",
+        "mileage": 48000,
+        "mot_status": "Valid",
+        "mot_days_remaining": 110,
+    },
+}
+
+
 def deterministic_mock_lookup(registration: str) -> Dict[str, Any]:
     """
-    Generates a highly realistic, deteriministic vehicle profile based on a hash of the registration plate.
-    This allows the dashboard feature to be fully demonstrated in a portfolio without requiring the reviewer to register for Gov API keys.
+    Generates a deterministic synthetic vehicle profile from a hash of the registration.
+
+    This lets the dashboard lookup feature be demonstrated end-to-end without
+    requiring reviewers to register for DVLA/DVSA API keys. All returned data is
+    synthetic.
     """
-# Use MD5 to get a consistent hash for this number plate
     reg = registration.upper().replace(" ", "")
-    
-    # Real-world lookup table for specific test cases to ensure 100% accuracy for the USER
-    REAL_PLATE_REGISTRY = {
-        "RJ20HZA": {
-            "make": "Hyundai",
-            "model": "Ioniq Premium SE",
-            "year": 2020,
-            "fuel_type": "hybrid",
-            "mileage": 32000,
-            "mot_status": "Valid",
-            "mot_days_remaining": 210
-        },
-        "OE19LNC": {
-            "make": "BMW",
-            "model": "3 Series 330e",
-            "year": 2019,
-            "fuel_type": "hybrid",
-            "mileage": 42000,
-            "mot_status": "Valid",
-            "mot_days_remaining": 150
-        },
-        "LR68LKF": {
-            "make": "Land Rover",
-            "model": "Range Rover Sport",
-            "year": 2018,
-            "fuel_type": "diesel",
-            "mileage": 58000,
-            "mot_status": "Valid",
-            "mot_days_remaining": 60
-        },
-        "AB12CDE": {
-            "make": "Volkswagen",
-            "model": "Golf GTE",
-            "year": 2012,
-            "fuel_type": "hybrid",
-            "mileage": 85000,
-            "mot_status": "Valid",
-            "mot_days_remaining": 45
-        }
-    }
-    
-    if reg in REAL_PLATE_REGISTRY:
+
+    if reg in DEMO_PLATE_REGISTRY:
         return {
             "status": "success",
-            "source": "REAL_REGISTRY",
+            "source": "DEMO_REGISTRY",
             "registration": reg,
-            **REAL_PLATE_REGISTRY[reg]
+            **DEMO_PLATE_REGISTRY[reg],
         }
 
+    # Hash the plate so repeated lookups of the same registration are consistent
     h = hashlib.md5(reg.encode("utf-8")).hexdigest()
 
     # 50+ makes
     makes = [
-        "Acura", "Alfa Romeo", "Aston Martin", "Audi", "Bentley", "BMW", "Buick", "Cadillac",
-        "Chevrolet", "Chrysler", "Citroen", "Dacia", "Dodge", "Ferrari", "Fiat", "Ford",
-        "Genesis", "GMC", "Honda", "Hyundai", "Infiniti", "Jaguar", "Jeep", "Kia",
-        "Lamborghini", "Land Rover", "Lexus", "Lincoln", "Lotus", "Maserati", "Mazda",
-        "McLaren", "Mercedes-Benz", "MG", "MINI", "Mitsubishi", "Nissan", "Peugeot",
-        "Polestar", "Porsche", "Ram", "Renault", "Rolls-Royce", "Saab", "Seat", "Skoda",
-        "Subaru", "Suzuki", "Tesla", "Toyota", "Vauxhall", "Volkswagen", "Volvo"
+        "Acura",
+        "Alfa Romeo",
+        "Aston Martin",
+        "Audi",
+        "Bentley",
+        "BMW",
+        "Buick",
+        "Cadillac",
+        "Chevrolet",
+        "Chrysler",
+        "Citroen",
+        "Dacia",
+        "Dodge",
+        "Ferrari",
+        "Fiat",
+        "Ford",
+        "Genesis",
+        "GMC",
+        "Honda",
+        "Hyundai",
+        "Infiniti",
+        "Jaguar",
+        "Jeep",
+        "Kia",
+        "Lamborghini",
+        "Land Rover",
+        "Lexus",
+        "Lincoln",
+        "Lotus",
+        "Maserati",
+        "Mazda",
+        "McLaren",
+        "Mercedes-Benz",
+        "MG",
+        "MINI",
+        "Mitsubishi",
+        "Nissan",
+        "Peugeot",
+        "Polestar",
+        "Porsche",
+        "Ram",
+        "Renault",
+        "Rolls-Royce",
+        "Saab",
+        "Seat",
+        "Skoda",
+        "Subaru",
+        "Suzuki",
+        "Tesla",
+        "Toyota",
+        "Vauxhall",
+        "Volkswagen",
+        "Volvo",
     ]
 
     # Deterministic selection
@@ -88,10 +149,12 @@ def deterministic_mock_lookup(registration: str) -> Dict[str, Any]:
     year = 2012 + (int(h[7:9], 16) % 13)
     fuel_types = ["petrol", "diesel", "electric", "hybrid"]
     fuel = fuel_types[int(h[9:10], 16) % len(fuel_types)]
-    
-    # Realistic mileage based on age
+
+    # Realistic mileage based on age (UK avg ~8500 miles/year)
     age = 2025 - year
-    mileage = (age * 8000) + (int(h[10:14], 16) % 5000)
+    avg_annual_mileage = 8500
+    jitter = (int(h[10:14], 16) % 3000) - 1500  # +/- 1500 miles jitter
+    mileage = max(1000, (age * avg_annual_mileage) + jitter)
 
     # MOT Status
     mot_days_left = -10 + (int(h[14:18], 16) % 380)
