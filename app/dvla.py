@@ -1,6 +1,7 @@
-import os
 import hashlib
-from typing import Dict, Any
+import os
+from typing import Any, Dict
+
 import httpx
 
 DVLA_VES_API_KEY = os.getenv("DVLA_VES_API_KEY")
