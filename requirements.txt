@@ -15,6 +15,6 @@ pytest
 pytest-env
 httpx
 ruff==0.16.3
-black==26.5.1
+black==26.10.1
 python-dotenv
 shap; extra == 'explain'
